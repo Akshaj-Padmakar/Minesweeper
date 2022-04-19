@@ -16,12 +16,11 @@
 
 #define LED_PIN 25
 
-int main()
-{
+int main() {
 
     //intialize stdio
     stdio_init_all();
-    
+
     gpio_init(LED_PIN);
     gpio_init(up);
     gpio_init(down);
@@ -35,7 +34,7 @@ int main()
     gpio_set_dir(up, GPIO_IN);
     // Enable the internal pullup resistor to Button
     gpio_pull_up(up);
-    
+
     gpio_set_dir(down, GPIO_IN);
     // Enable the internal pullup resistor to Button
     gpio_pull_up(down);
@@ -57,7 +56,7 @@ int main()
     gpio_pull_up(flag);
 
     // intialize the SPI0 of Raspberry Pi
-        // This example will use SPI0 at 4MHz.
+    // This example will use SPI0 at 4MHz.
     spi_init(SPI_PORT, 4000 * 1000);
     //gpio_set_function(LCD_MISO, GPIO_FUNC_SPI);
     gpio_set_function(LCD_SCK, GPIO_FUNC_SPI);
@@ -82,106 +81,91 @@ int main()
     // }
     grid();
     bool flg = false, start = false;
-    clock_t before;
-    int tm;
-    while (1){
-        if (start && ((long double)clock - before / CLOCKS_PER_SEC) >= 1){
-            tm++;
-            timeDisplay(tm);
-            before = clock();
-        }
-        if (gpio_get(up) == false){ 
+    while (1) {
+        if (gpio_get(up) == false) {
             sleep_ms(100);
-            if (gpio_get(up) == false){
-                if (flg){
+            if (gpio_get(up) == false) {
+                if (flg) {
                     continue;
                 }
                 move_cursor(0, -1);
                 flg = true;
-                timeDisplay(tm);
                 sleep_ms(100);
                 display();
                 gpio_put(LED_PIN, 1);
             }
         }
-        else if (gpio_get(down) == false){
+        else if (gpio_get(down) == false) {
             sleep_ms(100);
-            if (gpio_get(down) == false){
-                if (flg){
+            if (gpio_get(down) == false) {
+                if (flg) {
                     continue;
                 }
                 move_cursor(0, 1);
                 flg = true;
-                timeDisplay(tm);
                 sleep_ms(100);
                 display();
                 gpio_put(LED_PIN, 1);
             }
         }
-        else if (gpio_get(left) == false){
+        else if (gpio_get(left) == false) {
             sleep_ms(100);
-            if (gpio_get(left) == false){
-                if (flg){
+            if (gpio_get(left) == false) {
+                if (flg) {
                     continue;
                 }
                 move_cursor(-1, 0);
                 flg = true;
-                timeDisplay(tm);
                 sleep_ms(100);
                 display();
                 gpio_put(LED_PIN, 1);
             }
         }
-        else if (gpio_get(right) == false){
+        else if (gpio_get(right) == false) {
             sleep_ms(100);
-            if (gpio_get(right) == false){
-                if (flg){
+            if (gpio_get(right) == false) {
+                if (flg) {
                     continue;
                 }
                 move_cursor(1, 0);
                 flg = true;
-                timeDisplay(tm);
                 sleep_ms(100);
                 display();
                 gpio_put(LED_PIN, 1);
             }
         }
-        else if (gpio_get(clik) == false){
+        else if (gpio_get(clik) == false) {
             sleep_ms(100);
-            if (gpio_get(clik) == false){
-                if (flg){
+            if (gpio_get(clik) == false) {
+                if (flg) {
                     continue;
                 }
-                if (!start){
+                if (!start) {
                     start = true;
-                    tm = 0;
-                    before = clock();
                     start = generate();
                 }
-                else{
+                else {
                     start = cl();
                 }
                 gridd();
-                timeDisplay(tm);
                 flg = true;
                 gpio_put(LED_PIN, 1);
             }
         }
-        else if (gpio_get(flag) == false){
+        else if (gpio_get(flag) == false) {
             sleep_ms(100);
-            if (gpio_get(flag) == false){
-                if (flg){
+            if (gpio_get(flag) == false) {
+                if (flg) {
                     continue;
                 }
                 gpio_put(LED_PIN, 1);
                 flagg();
-                timeDisplay(tm);
                 flg = true;
                 sleep_ms(100);
                 display();
             }
         }
-        else{
+        else {
             gpio_put(LED_PIN, 0);
             flg = false;
         }
