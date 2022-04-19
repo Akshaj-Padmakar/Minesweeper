@@ -43,8 +43,11 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <math.h>
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
+#include "hardware/timer.h"
 #include "main.h"
 #include "Nokia5110.h"
+#include <stdlib.h>
+#include <time.h>
 
 /// Font data stored PER GLYPH
 void cp437(bool x);
@@ -98,10 +101,10 @@ bool _cp437 = false;
 #define pgm_read_byte(addr) (*(const unsigned char *)(addr))
 
 #ifndef pgm_read_word
-	#define pgm_read_word(addr) (*(const unsigned short *)(addr))
+#define pgm_read_word(addr) (*(const unsigned short *)(addr))
 #endif
 #ifndef pgm_read_dword
-	#define pgm_read_dword(addr) (*(const unsigned long *)(addr))
+#define pgm_read_dword(addr) (*(const unsigned long *)(addr))
 #endif
 
 // Pointers are a peculiar case...typically 16-bit on AVR boards,
@@ -115,38 +118,38 @@ bool _cp437 = false;
 
 // the memory buffer for the LCD
 uint8_t pcd8544_buffer[LCDWIDTH * LCDHEIGHT / 8] = {
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFC, 0xFE, 0xFF, 0xFC, 0xE0,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
-		0xF8, 0xF0, 0xF0, 0xE0, 0xE0, 0xC0, 0x80, 0xC0, 0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x3F, 0x7F,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xE7, 0xC7, 0xC7, 0x87, 0x8F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF,
-		0xC1, 0xC0, 0xE0, 0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC, 0xFC, 0xFC, 0xFC, 0xFE, 0xFE, 0xFE,
-		0xFC, 0xFC, 0xF8, 0xF8, 0xF0, 0xE0, 0xC0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x80, 0xC0, 0xE0, 0xF1, 0xFB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x1F, 0x0F, 0x0F, 0x87,
-		0xE7, 0xFF, 0xFF, 0xFF, 0x1F, 0x1F, 0x3F, 0xF9, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xFD, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x3F, 0x0F, 0x07, 0x01, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0xF0, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
-		0x7E, 0x3F, 0x3F, 0x0F, 0x1F, 0xFF, 0xFF, 0xFF, 0xFC, 0xF0, 0xE0, 0xF1, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFC, 0xF0, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01,
-		0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x0F, 0x1F, 0x3F, 0x7F, 0x7F,
-		0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x7F, 0x1F, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFC, 0xFE, 0xFF, 0xFC, 0xE0,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+	0xF8, 0xF0, 0xF0, 0xE0, 0xE0, 0xC0, 0x80, 0xC0, 0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x3F, 0x7F,
+	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF, 0xFF,
+	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xE7, 0xC7, 0xC7, 0x87, 0x8F, 0x9F, 0x9F, 0xFF, 0xFF, 0xFF,
+	0xC1, 0xC0, 0xE0, 0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC, 0xFC, 0xFC, 0xFC, 0xFE, 0xFE, 0xFE,
+	0xFC, 0xFC, 0xF8, 0xF8, 0xF0, 0xE0, 0xC0, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x80, 0xC0, 0xE0, 0xF1, 0xFB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x1F, 0x0F, 0x0F, 0x87,
+	0xE7, 0xFF, 0xFF, 0xFF, 0x1F, 0x1F, 0x3F, 0xF9, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xFD, 0xFF,
+	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x3F, 0x0F, 0x07, 0x01, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0xF0, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
+	0x7E, 0x3F, 0x3F, 0x0F, 0x1F, 0xFF, 0xFF, 0xFF, 0xFC, 0xF0, 0xE0, 0xF1, 0xFF, 0xFF, 0xFF, 0xFF,
+	0xFF, 0xFC, 0xF0, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x01,
+	0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x0F, 0x1F, 0x3F, 0x7F, 0x7F,
+	0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0x7F, 0x1F, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 
@@ -174,7 +177,7 @@ void drawPixel(int16_t x, int16_t y, uint16_t color) {
 		return;
 
 	int16_t t;
-	switch(rotation){
+	switch (rotation) {
 	case 1:
 		t = x;
 		x = y;
@@ -196,11 +199,11 @@ void drawPixel(int16_t x, int16_t y, uint16_t color) {
 
 	// x is which column
 	if (color)
-		pcd8544_buffer[x+ (y/8)*LCDWIDTH] |= _BV(y%8);
+		pcd8544_buffer[x + (y / 8)*LCDWIDTH] |= _BV(y % 8);
 	else
-		pcd8544_buffer[x+ (y/8)*LCDWIDTH] &= ~_BV(y%8);
+		pcd8544_buffer[x + (y / 8)*LCDWIDTH] &= ~_BV(y % 8);
 
-	updateBoundingBox(x,y,x,y);
+	updateBoundingBox(x, y, x, y);
 }
 
 
@@ -209,7 +212,7 @@ uint8_t getPixel(int8_t x, int8_t y) {
 	if ((x < 0) || (x >= LCDWIDTH) || (y < 0) || (y >= LCDHEIGHT))
 		return 0;
 
-	return (pcd8544_buffer[x+ (y/8)*LCDWIDTH] >> (y%8)) & 0x1;
+	return (pcd8544_buffer[x + (y / 8) * LCDWIDTH] >> (y % 8)) & 0x1;
 }
 
 
@@ -251,7 +254,7 @@ void Nokia5110_Init(void) {
 
 	// set up a bounding box for screen updates
 
-	updateBoundingBox(0, 0, LCDWIDTH-1, LCDHEIGHT-1);
+	updateBoundingBox(0, 0, LCDWIDTH - 1, LCDHEIGHT - 1);
 	// Push out pcd8544_buffer to the Display (will show the AFI logo)
 	display();
 }
@@ -302,13 +305,13 @@ void setContrast(uint8_t val) {
 void display(void) {
 	uint8_t col, maxcol, p;
 
-	for(p = 0; p < 6; p++) {
+	for (p = 0; p < 6; p++) {
 #ifdef enablePartialUpdate
 		// check if this page is part of update
-		if ( yUpdateMin >= ((p+1)*8) ) {
+		if ( yUpdateMin >= ((p + 1) * 8) ) {
 			continue;   // nope, skip it!
 		}
-		if (yUpdateMax < p*8) {
+		if (yUpdateMax < p * 8) {
 			break;
 		}
 #endif
@@ -322,7 +325,7 @@ void display(void) {
 #else
 		// start at the beginning of the row
 		col = 0;
-		maxcol = LCDWIDTH-1;
+		maxcol = LCDWIDTH - 1;
 #endif
 
 		command(PCD8544_SETXADDR | col);
@@ -332,8 +335,8 @@ void display(void) {
 
 		//digitalWrite(_cs, LOW);
 		gpio_put(LCD_CS, 0);
-		for(; col <= maxcol; col++) {
-			spiWrite(pcd8544_buffer[(LCDWIDTH*p)+col]);
+		for (; col <= maxcol; col++) {
+			spiWrite(pcd8544_buffer[(LCDWIDTH * p) + col]);
 		}
 
 		//digitalWrite(_cs, HIGH);
@@ -345,7 +348,7 @@ void display(void) {
 #ifdef enablePartialUpdate
 	xUpdateMin = LCDWIDTH - 1;
 	xUpdateMax = 0;
-	yUpdateMin = LCDHEIGHT-1;
+	yUpdateMin = LCDHEIGHT - 1;
 	yUpdateMax = 0;
 #endif
 
@@ -353,16 +356,16 @@ void display(void) {
 
 // clear everything
 void clearDisplay(void) {
-	memset(pcd8544_buffer, 0, LCDWIDTH*LCDHEIGHT/8);
-	updateBoundingBox(0, 0, LCDWIDTH-1, LCDHEIGHT-1);
+	memset(pcd8544_buffer, 0, LCDWIDTH * LCDHEIGHT / 8);
+	updateBoundingBox(0, 0, LCDWIDTH - 1, LCDHEIGHT - 1);
 	cursor_y = cursor_x = 0;
 }
 
-void writePixel(int16_t x, int16_t y, uint16_t color){
+void writePixel(int16_t x, int16_t y, uint16_t color) {
 	drawPixel(x, y, color);
 }
 
-void writeLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color){
+void writeLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
 	int16_t steep = abs(y1 - y0) > abs(x1 - x0);
 	if (steep) {
 		_swap_int16_t(x0, y0);
@@ -387,7 +390,7 @@ void writeLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color){
 		ystep = -1;
 	}
 
-	for (; x0<=x1; x0++) {
+	for (; x0 <= x1; x0++) {
 		if (steep) {
 			writePixel(y0, x0, color);
 		} else {
@@ -401,16 +404,16 @@ void writeLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color){
 	}
 }
 
-void drawFastVLine(int16_t x, int16_t y,int16_t h, uint16_t color){
-	writeLine(x, y, x, y+h-1, color);
+void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) {
+	writeLine(x, y, x, y + h - 1, color);
 }
 
-void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color){
-	writeLine(x, y, x+w-1, y, color);
+void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) {
+	writeLine(x, y, x + w - 1, y, color);
 }
-void fillRect(int16_t x, int16_t y, int16_t w, int16_t h,uint16_t color) {
+void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
 	//startWrite();
-	for (int16_t i=x; i<x+w; i++) {
+	for (int16_t i = x; i < x + w; i++) {
 		writeFastVLine(i, y, h, color);
 	}
 	//endWrite();
@@ -419,13 +422,13 @@ void fillScreen(uint16_t color) {
 	fillRect(0, 0, _width, _height, color);
 }
 
-void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,uint16_t color) {
+void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
 	// Update in subclasses if desired!
-	if(x0 == x1){
-		if(y0 > y1) _swap_int16_t(y0, y1);
+	if (x0 == x1) {
+		if (y0 > y1) _swap_int16_t(y0, y1);
 		drawFastVLine(x0, y0, y1 - y0 + 1, color);
-	} else if(y0 == y1){
-		if(x0 > x1) _swap_int16_t(x0, x1);
+	} else if (y0 == y1) {
+		if (x0 > x1) _swap_int16_t(x0, x1);
 		drawFastHLine(x0, y0, x1 - x0 + 1, color);
 	} else {
 		//startWrite();
@@ -434,7 +437,7 @@ void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,uint16_t color) {
 	}
 }
 
-void drawCircle(int16_t x0, int16_t y0, int16_t r,uint16_t color) {
+void drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color) {
 	int16_t f = 1 - r;
 	int16_t ddF_x = 1;
 	int16_t ddF_y = -2 * r;
@@ -442,12 +445,12 @@ void drawCircle(int16_t x0, int16_t y0, int16_t r,uint16_t color) {
 	int16_t y = r;
 
 	//startWrite();
-	writePixel(x0  , y0+r, color);
-	writePixel(x0  , y0-r, color);
-	writePixel(x0+r, y0  , color);
-	writePixel(x0-r, y0  , color);
+	writePixel(x0  , y0 + r, color);
+	writePixel(x0  , y0 - r, color);
+	writePixel(x0 + r, y0  , color);
+	writePixel(x0 - r, y0  , color);
 
-	while (x<y) {
+	while (x < y) {
 		if (f >= 0) {
 			y--;
 			ddF_y += 2;
@@ -468,32 +471,32 @@ void drawCircle(int16_t x0, int16_t y0, int16_t r,uint16_t color) {
 	}
 	//endWrite();
 }
-void writeFastVLine(int16_t x, int16_t y,int16_t h, uint16_t color) {
-    // Overwrite in subclasses if startWrite is defined!
-    // Can be just writeLine(x, y, x, y+h-1, color);
-    // or writeFillRect(x, y, 1, h, color);
-    drawFastVLine(x, y, h, color);
+void writeFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) {
+	// Overwrite in subclasses if startWrite is defined!
+	// Can be just writeLine(x, y, x, y+h-1, color);
+	// or writeFillRect(x, y, 1, h, color);
+	drawFastVLine(x, y, h, color);
 }
-void writeFastHLine(int16_t x, int16_t y,int16_t w, uint16_t color) {
-    // Overwrite in subclasses if startWrite is defined!
-    // Example: writeLine(x, y, x+w-1, y, color);
-    // or writeFillRect(x, y, w, 1, color);
-    drawFastHLine(x, y, w, color);
+void writeFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) {
+	// Overwrite in subclasses if startWrite is defined!
+	// Example: writeLine(x, y, x+w-1, y, color);
+	// or writeFillRect(x, y, w, 1, color);
+	drawFastHLine(x, y, w, color);
 }
 void writeFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-    // Overwrite in subclasses if desired!
-    fillRect(x,y,w,h,color);
+	// Overwrite in subclasses if desired!
+	fillRect(x, y, w, h, color);
 }
 
 
-void drawCircleHelper( int16_t x0, int16_t y0,int16_t r, uint8_t cornername, uint16_t color) {
+void drawCircleHelper( int16_t x0, int16_t y0, int16_t r, uint8_t cornername, uint16_t color) {
 	int16_t f     = 1 - r;
 	int16_t ddF_x = 1;
 	int16_t ddF_y = -2 * r;
 	int16_t x     = 0;
 	int16_t y     = r;
 
-	while (x<y) {
+	while (x < y) {
 		if (f >= 0) {
 			y--;
 			ddF_y += 2;
@@ -528,7 +531,7 @@ void fillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int
 	int16_t x     = 0;
 	int16_t y     = r;
 
-	while (x<y) {
+	while (x < y) {
 		if (f >= 0) {
 			y--;
 			ddF_y += 2;
@@ -539,54 +542,54 @@ void fillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int
 		f     += ddF_x;
 
 		if (cornername & 0x1) {
-			writeFastVLine(x0+x, y0-y, 2*y+1+delta, color);
-			writeFastVLine(x0+y, y0-x, 2*x+1+delta, color);
+			writeFastVLine(x0 + x, y0 - y, 2 * y + 1 + delta, color);
+			writeFastVLine(x0 + y, y0 - x, 2 * x + 1 + delta, color);
 		}
 		if (cornername & 0x2) {
-			writeFastVLine(x0-x, y0-y, 2*y+1+delta, color);
-			writeFastVLine(x0-y, y0-x, 2*x+1+delta, color);
+			writeFastVLine(x0 - x, y0 - y, 2 * y + 1 + delta, color);
+			writeFastVLine(x0 - y, y0 - x, 2 * x + 1 + delta, color);
 		}
 	}
 }
-void fillCircle(int16_t x0, int16_t y0, int16_t r,uint16_t color) {
+void fillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color) {
 	//startWrite();
-	writeFastVLine(x0, y0-r, 2*r+1, color);
+	writeFastVLine(x0, y0 - r, 2 * r + 1, color);
 	fillCircleHelper(x0, y0, r, 3, 0, color);
 	//endWrite();
 }
 
-void drawRect(int16_t x, int16_t y, int16_t w, int16_t h,uint16_t color) {
+void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
 	//startWrite();
 	writeFastHLine(x, y, w, color);
-	writeFastHLine(x, y+h-1, w, color);
+	writeFastHLine(x, y + h - 1, w, color);
 	writeFastVLine(x, y, h, color);
-	writeFastVLine(x+w-1, y, h, color);
+	writeFastVLine(x + w - 1, y, h, color);
 	//endWrite();
 }
 
 void drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
 	// smarter version
 	//startWrite();
-	writeFastHLine(x+r  , y    , w-2*r, color); // Top
-	writeFastHLine(x+r  , y+h-1, w-2*r, color); // Bottom
-	writeFastVLine(x    , y+r  , h-2*r, color); // Left
-	writeFastVLine(x+w-1, y+r  , h-2*r, color); // Right
+	writeFastHLine(x + r  , y    , w - 2 * r, color); // Top
+	writeFastHLine(x + r  , y + h - 1, w - 2 * r, color); // Bottom
+	writeFastVLine(x    , y + r  , h - 2 * r, color); // Left
+	writeFastVLine(x + w - 1, y + r  , h - 2 * r, color); // Right
 	// draw four corners
-	drawCircleHelper(x+r    , y+r    , r, 1, color);
-	drawCircleHelper(x+w-r-1, y+r    , r, 2, color);
-	drawCircleHelper(x+w-r-1, y+h-r-1, r, 4, color);
-	drawCircleHelper(x+r    , y+h-r-1, r, 8, color);
+	drawCircleHelper(x + r    , y + r    , r, 1, color);
+	drawCircleHelper(x + w - r - 1, y + r    , r, 2, color);
+	drawCircleHelper(x + w - r - 1, y + h - r - 1, r, 4, color);
+	drawCircleHelper(x + r    , y + h - r - 1, r, 8, color);
 	//endWrite();
 }
 
 void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
 	// smarter version
 	//startWrite();
-	writeFillRect(x+r, y, w-2*r, h, color);
+	writeFillRect(x + r, y, w - 2 * r, h, color);
 
 	// draw four corners
-	fillCircleHelper(x+w-r-1, y+r, r, 1, h-2*r-1, color);
-	fillCircleHelper(x+r    , y+r, r, 2, h-2*r-1, color);
+	fillCircleHelper(x + w - r - 1, y + r, r, 1, h - 2 * r - 1, color);
+	fillCircleHelper(x + r    , y + r, r, 2, h - 2 * r - 1, color);
 	//endWrite();
 }
 
@@ -612,13 +615,13 @@ void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, in
 	}
 
 	//startWrite();
-	if(y0 == y2) { // Handle awkward all-on-same-line case as its own thing
+	if (y0 == y2) { // Handle awkward all-on-same-line case as its own thing
 		a = b = x0;
-		if(x1 < a)      a = x1;
-		else if(x1 > b) b = x1;
-		if(x2 < a)      a = x2;
-		else if(x2 > b) b = x2;
-		writeFastHLine(a, y0, b-a+1, color);
+		if (x1 < a)      a = x1;
+		else if (x1 > b) b = x1;
+		if (x2 < a)      a = x2;
+		else if (x2 > b) b = x2;
+		writeFastHLine(a, y0, b - a + 1, color);
 		//endWrite();
 		return;
 	}
@@ -640,73 +643,73 @@ void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, in
 	// error there), otherwise scanline y1 is skipped here and handled
 	// in the second loop...which also avoids a /0 error here if y0=y1
 	// (flat-topped triangle).
-	if(y1 == y2) last = y1;   // Include y1 scanline
-	else         last = y1-1; // Skip it
+	if (y1 == y2) last = y1;  // Include y1 scanline
+	else         last = y1 - 1; // Skip it
 
-	for(y=y0; y<=last; y++) {
+	for (y = y0; y <= last; y++) {
 		a   = x0 + sa / dy01;
 		b   = x0 + sb / dy02;
 		sa += dx01;
 		sb += dx02;
 		/* longhand:
-        a = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
-        b = x0 + (x2 - x0) * (y - y0) / (y2 - y0);
+		a = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
+		b = x0 + (x2 - x0) * (y - y0) / (y2 - y0);
 		 */
-		if(a > b) _swap_int16_t(a,b);
-		writeFastHLine(a, y, b-a+1, color);
+		if (a > b) _swap_int16_t(a, b);
+		writeFastHLine(a, y, b - a + 1, color);
 	}
 
 	// For lower part of triangle, find scanline crossings for segments
 	// 0-2 and 1-2.  This loop is skipped if y1=y2.
 	sa = dx12 * (y - y1);
 	sb = dx02 * (y - y0);
-	for(; y<=y2; y++) {
+	for (; y <= y2; y++) {
 		a   = x1 + sa / dy12;
 		b   = x0 + sb / dy02;
 		sa += dx12;
 		sb += dx02;
 		/* longhand:
-        a = x1 + (x2 - x1) * (y - y1) / (y2 - y1);
-        b = x0 + (x2 - x0) * (y - y0) / (y2 - y0);
+		a = x1 + (x2 - x1) * (y - y1) / (y2 - y1);
+		b = x0 + (x2 - x0) * (y - y0) / (y2 - y0);
 		 */
-		if(a > b) _swap_int16_t(a,b);
-		writeFastHLine(a, y, b-a+1, color);
+		if (a > b) _swap_int16_t(a, b);
+		writeFastHLine(a, y, b - a + 1, color);
 	}
 	//endWrite();
 }
 /*---------------------Text Related Functions--------------------*/
-void drawChar(int16_t x, int16_t y, unsigned char c,uint16_t color, uint16_t bg, uint8_t size){
+void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size) {
 
-	if(!gfxFont) { // 'Classic' built-in font
+	if (!gfxFont) { // 'Classic' built-in font
 
-		if((x >= _width)            || // Clip right
-				(y >= _height)           || // Clip bottom
-				((x + 6 * size - 1) < 0) || // Clip left
-				((y + 8 * size - 1) < 0))   // Clip top
+		if ((x >= _width)            || // Clip right
+		        (y >= _height)           || // Clip bottom
+		        ((x + 6 * size - 1) < 0) || // Clip left
+		        ((y + 8 * size - 1) < 0))   // Clip top
 			return;
 
-		if(!_cp437 && (c >= 176)) c++; // Handle 'classic' charset behavior
+		if (!_cp437 && (c >= 176)) c++; // Handle 'classic' charset behavior
 
 		//startWrite();
-		for(int8_t i=0; i<5; i++ ) { // Char bitmap = 5 columns
+		for (int8_t i = 0; i < 5; i++ ) { // Char bitmap = 5 columns
 			uint8_t line = pgm_read_byte(&font[c * 5 + i]);
-			for(int8_t j=0; j<8; j++, line >>= 1) {
-				if(line & 1) {
-					if(size == 1)
-						writePixel(x+i, y+j, color);
+			for (int8_t j = 0; j < 8; j++, line >>= 1) {
+				if (line & 1) {
+					if (size == 1)
+						writePixel(x + i, y + j, color);
 					else
-						writeFillRect(x+i*size, y+j*size, size, size, color);
-				} else if(bg != color) {
-					if(size == 1)
-						writePixel(x+i, y+j, bg);
+						writeFillRect(x + i * size, y + j * size, size, size, color);
+				} else if (bg != color) {
+					if (size == 1)
+						writePixel(x + i, y + j, bg);
 					else
-						writeFillRect(x+i*size, y+j*size, size, size, bg);
+						writeFillRect(x + i * size, y + j * size, size, size, bg);
 				}
 			}
 		}
-		if(bg != color) { // If opaque, draw vertical line for last column
-			if(size == 1) writeFastVLine(x+5, y, 8, bg);
-			else          writeFillRect(x+5*size, y, size, 8*size, bg);
+		if (bg != color) { // If opaque, draw vertical line for last column
+			if (size == 1) writeFastVLine(x + 5, y, 8, bg);
+			else          writeFillRect(x + 5 * size, y, size, 8 * size, bg);
 		}
 		//endWrite();
 
@@ -722,13 +725,13 @@ void drawChar(int16_t x, int16_t y, unsigned char c,uint16_t color, uint16_t bg,
 
 		uint16_t bo = pgm_read_word(&glyph->bitmapOffset);
 		uint8_t  w  = pgm_read_byte(&glyph->width),
-				h  = pgm_read_byte(&glyph->height);
+		         h  = pgm_read_byte(&glyph->height);
 		int8_t   xo = pgm_read_byte(&glyph->xOffset),
-				yo = pgm_read_byte(&glyph->yOffset);
+		         yo = pgm_read_byte(&glyph->yOffset);
 		uint8_t  xx, yy, bits = 0, bit = 0;
 		int16_t  xo16 = 0, yo16 = 0;
 
-		if(size > 1) {
+		if (size > 1) {
 			xo16 = xo;
 			yo16 = yo;
 		}
@@ -752,17 +755,17 @@ void drawChar(int16_t x, int16_t y, unsigned char c,uint16_t color, uint16_t bg,
 		// implemented this yet.
 
 		//startWrite();
-		for(yy=0; yy<h; yy++) {
-			for(xx=0; xx<w; xx++) {
-				if(!(bit++ & 7)) {
+		for (yy = 0; yy < h; yy++) {
+			for (xx = 0; xx < w; xx++) {
+				if (!(bit++ & 7)) {
 					bits = pgm_read_byte(&bitmap[bo++]);
 				}
-				if(bits & 0x80) {
-					if(size == 1) {
-						writePixel(x+xo+xx, y+yo+yy, color);
+				if (bits & 0x80) {
+					if (size == 1) {
+						writePixel(x + xo + xx, y + yo + yy, color);
 					} else {
-						writeFillRect(x+(xo16+xx)*size, y+(yo16+yy)*size,
-								size, size, color);
+						writeFillRect(x + (xo16 + xx)*size, y + (yo16 + yy)*size,
+						              size, size, color);
 					}
 				}
 				bits <<= 1;
@@ -779,13 +782,13 @@ void drawChar(int16_t x, int16_t y, unsigned char c,uint16_t color, uint16_t bg,
  */
 /**************************************************************************/
 size_t write(uint8_t c) {
-	if(!gfxFont) {
+	if (!gfxFont) {
 
-		if(c == '\n') {                        // Newline?
+		if (c == '\n') {                       // Newline?
 			cursor_x  = 0;                     // Reset x to zero,
 			cursor_y += textsize * 8;          // advance y one line
-		} else if(c != '\r') {                 // Ignore carriage returns
-			if(wrap && ((cursor_x + textsize * 6) > _width)) { // Off right?
+		} else if (c != '\r') {                // Ignore carriage returns
+			if (wrap && ((cursor_x + textsize * 6) > _width)) { // Off right?
 				cursor_x  = 0;                 // Reset x to zero,
 				cursor_y += textsize * 8;      // advance y one line
 			}
@@ -795,25 +798,25 @@ size_t write(uint8_t c) {
 
 	} else { // Custom font
 
-		if(c == '\n') {
+		if (c == '\n') {
 			cursor_x  = 0;
 			cursor_y += (int16_t)textsize *
-					(uint8_t)pgm_read_byte(&gfxFont->yAdvance);
-		} else if(c != '\r') {
+			            (uint8_t)pgm_read_byte(&gfxFont->yAdvance);
+		} else if (c != '\r') {
 			uint8_t first = pgm_read_byte(&gfxFont->first);
-			if((c >= first) && (c <= (uint8_t)pgm_read_byte(&gfxFont->last))) {
+			if ((c >= first) && (c <= (uint8_t)pgm_read_byte(&gfxFont->last))) {
 				GFXglyph *glyph = &(((GFXglyph *)pgm_read_pointer(
-						&gfxFont->glyph))[c - first]);
+				                         &gfxFont->glyph))[c - first]);
 				uint8_t   w     = pgm_read_byte(&glyph->width),
-						h     = pgm_read_byte(&glyph->height);
-				if((w > 0) && (h > 0)) { // Is there an associated bitmap?
-						int16_t xo = (int8_t)pgm_read_byte(&glyph->xOffset); // sic
-						if(wrap && ((cursor_x + textsize * (xo + w)) > _width)) {
-							cursor_x  = 0;
-							cursor_y += (int16_t)textsize *
-									(uint8_t)pgm_read_byte(&gfxFont->yAdvance);
-						}
-						drawChar(cursor_x, cursor_y, c, textcolor, textbgcolor, textsize);
+				          h     = pgm_read_byte(&glyph->height);
+				if ((w > 0) && (h > 0)) { // Is there an associated bitmap?
+					int16_t xo = (int8_t)pgm_read_byte(&glyph->xOffset); // sic
+					if (wrap && ((cursor_x + textsize * (xo + w)) > _width)) {
+						cursor_x  = 0;
+						cursor_y += (int16_t)textsize *
+						            (uint8_t)pgm_read_byte(&gfxFont->yAdvance);
+					}
+					drawChar(cursor_x, cursor_y, c, textcolor, textbgcolor, textsize);
 				}
 				cursor_x += (uint8_t)pgm_read_byte(&glyph->xAdvance) * (int16_t)textsize;
 			}
@@ -829,7 +832,7 @@ void printChar(char c)
 }
 void printString(char string[])
 {
-	for(uint8_t i=0;  i< 16 && string[i]!=NULL; i++)
+	for (uint8_t i = 0;  i < 16 && string[i] != NULL; i++)
 	{
 		write((uint8_t)string[i]);
 	}
@@ -837,129 +840,129 @@ void printString(char string[])
 void printInt(int number)
 {
 	char numStr[16];
-	sprintf(numStr,"%d", number);
+	sprintf(numStr, "%d", number);
 	printString(numStr);
 }
 
 void printFloat(float number, int decimalPoints)
 {
 	char numStr[16];
-	sprintf(numStr,"%.*f",decimalPoints, number);
+	sprintf(numStr, "%.*f", decimalPoints, number);
 	printString(numStr);
 }
 void setCursor(int16_t x, int16_t y) {
-    cursor_x = x;
-    cursor_y = y;
+	cursor_x = x;
+	cursor_y = y;
 }
 
 int16_t const getCursorX(void)  {
-    return cursor_x;
+	return cursor_x;
 }
 int16_t const getCursorY(void)  {
-    return cursor_y;
+	return cursor_y;
 }
 void setTextSize(uint8_t s) {
-    textsize = (s > 0) ? s : 1;
+	textsize = (s > 0) ? s : 1;
 }
 void setTextColor(uint16_t c, uint16_t b) {
-    textcolor   = c;
-    textbgcolor = b;
+	textcolor   = c;
+	textbgcolor = b;
 }
 void cp437(bool x) {
-    _cp437 = x;
+	_cp437 = x;
 }
 void setFont(const GFXfont *f) {
-    if(f) {            // Font struct pointer passed in?
-        if(!gfxFont) { // And no current font struct?
-            // Switching from classic to new font behavior.
-            // Move cursor pos down 6 pixels so it's on baseline.
-            cursor_y += 6;
-        }
-    } else if(gfxFont) { // NULL passed.  Current font struct defined?
-        // Switching from new to classic font behavior.
-        // Move cursor pos up 6 pixels so it's at top-left of char.
-        cursor_y -= 6;
-    }
-    gfxFont = (GFXfont *)f;
+	if (f) {           // Font struct pointer passed in?
+		if (!gfxFont) { // And no current font struct?
+			// Switching from classic to new font behavior.
+			// Move cursor pos down 6 pixels so it's on baseline.
+			cursor_y += 6;
+		}
+	} else if (gfxFont) { // NULL passed.  Current font struct defined?
+		// Switching from new to classic font behavior.
+		// Move cursor pos up 6 pixels so it's at top-left of char.
+		cursor_y -= 6;
+	}
+	gfxFont = (GFXfont *)f;
 }
 
 void charBounds(char c, int16_t *x, int16_t *y, int16_t *minx, int16_t *miny, int16_t *maxx, int16_t *maxy) {
 
-    if(gfxFont) {
+	if (gfxFont) {
 
-        if(c == '\n') { // Newline?
-            *x  = 0;    // Reset x to zero, advance y by one line
-            *y += textsize * (uint8_t)pgm_read_byte(&gfxFont->yAdvance);
-        } else if(c != '\r') { // Not a carriage return; is normal char
-            uint8_t first = pgm_read_byte(&gfxFont->first),
-                    last  = pgm_read_byte(&gfxFont->last);
-            if((c >= first) && (c <= last)) { // Char present in this font?
-                GFXglyph *glyph = &(((GFXglyph *)pgm_read_pointer(
-                  &gfxFont->glyph))[c - first]);
-                uint8_t gw = pgm_read_byte(&glyph->width),
-                        gh = pgm_read_byte(&glyph->height),
-                        xa = pgm_read_byte(&glyph->xAdvance);
-                int8_t  xo = pgm_read_byte(&glyph->xOffset),
-                        yo = pgm_read_byte(&glyph->yOffset);
-                if(wrap && ((*x+(((int16_t)xo+gw)*textsize)) > _width)) {
-                    *x  = 0; // Reset x to zero, advance y by one line
-                    *y += textsize * (uint8_t)pgm_read_byte(&gfxFont->yAdvance);
-                }
-                int16_t ts = (int16_t)textsize,
-                        x1 = *x + xo * ts,
-                        y1 = *y + yo * ts,
-                        x2 = x1 + gw * ts - 1,
-                        y2 = y1 + gh * ts - 1;
-                if(x1 < *minx) *minx = x1;
-                if(y1 < *miny) *miny = y1;
-                if(x2 > *maxx) *maxx = x2;
-                if(y2 > *maxy) *maxy = y2;
-                *x += xa * ts;
-            }
-        }
+		if (c == '\n') { // Newline?
+			*x  = 0;    // Reset x to zero, advance y by one line
+			*y += textsize * (uint8_t)pgm_read_byte(&gfxFont->yAdvance);
+		} else if (c != '\r') { // Not a carriage return; is normal char
+			uint8_t first = pgm_read_byte(&gfxFont->first),
+			        last  = pgm_read_byte(&gfxFont->last);
+			if ((c >= first) && (c <= last)) { // Char present in this font?
+				GFXglyph *glyph = &(((GFXglyph *)pgm_read_pointer(
+				                         &gfxFont->glyph))[c - first]);
+				uint8_t gw = pgm_read_byte(&glyph->width),
+				        gh = pgm_read_byte(&glyph->height),
+				        xa = pgm_read_byte(&glyph->xAdvance);
+				int8_t  xo = pgm_read_byte(&glyph->xOffset),
+				        yo = pgm_read_byte(&glyph->yOffset);
+				if (wrap && ((*x + (((int16_t)xo + gw)*textsize)) > _width)) {
+					*x  = 0; // Reset x to zero, advance y by one line
+					*y += textsize * (uint8_t)pgm_read_byte(&gfxFont->yAdvance);
+				}
+				int16_t ts = (int16_t)textsize,
+				        x1 = *x + xo * ts,
+				        y1 = *y + yo * ts,
+				        x2 = x1 + gw * ts - 1,
+				        y2 = y1 + gh * ts - 1;
+				if (x1 < *minx) *minx = x1;
+				if (y1 < *miny) *miny = y1;
+				if (x2 > *maxx) *maxx = x2;
+				if (y2 > *maxy) *maxy = y2;
+				*x += xa * ts;
+			}
+		}
 
-    } else { // Default font
+	} else { // Default font
 
-        if(c == '\n') {                     // Newline?
-            *x  = 0;                        // Reset x to zero,
-            *y += textsize * 8;             // advance y one line
-            // min/max x/y unchaged -- that waits for next 'normal' character
-        } else if(c != '\r') {  // Normal char; ignore carriage returns
-            if(wrap && ((*x + textsize * 6) > _width)) { // Off right?
-                *x  = 0;                    // Reset x to zero,
-                *y += textsize * 8;         // advance y one line
-            }
-            int x2 = *x + textsize * 6 - 1, // Lower-right pixel of char
-                y2 = *y + textsize * 8 - 1;
-            if(x2 > *maxx) *maxx = x2;      // Track max x, y
-            if(y2 > *maxy) *maxy = y2;
-            if(*x < *minx) *minx = *x;      // Track min x, y
-            if(*y < *miny) *miny = *y;
-            *x += textsize * 6;             // Advance x one char
-        }
-    }
+		if (c == '\n') {                    // Newline?
+			*x  = 0;                        // Reset x to zero,
+			*y += textsize * 8;             // advance y one line
+			// min/max x/y unchaged -- that waits for next 'normal' character
+		} else if (c != '\r') { // Normal char; ignore carriage returns
+			if (wrap && ((*x + textsize * 6) > _width)) { // Off right?
+				*x  = 0;                    // Reset x to zero,
+				*y += textsize * 8;         // advance y one line
+			}
+			int x2 = *x + textsize * 6 - 1, // Lower-right pixel of char
+			    y2 = *y + textsize * 8 - 1;
+			if (x2 > *maxx) *maxx = x2;     // Track max x, y
+			if (y2 > *maxy) *maxy = y2;
+			if (*x < *minx) *minx = *x;     // Track min x, y
+			if (*y < *miny) *miny = *y;
+			*x += textsize * 6;             // Advance x one char
+		}
+	}
 }
 
 void getTextBounds(const char *str, int16_t x, int16_t y, int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h) {
-    uint8_t c; // Current character
+	uint8_t c; // Current character
 
-    *x1 = x;
-    *y1 = y;
-    *w  = *h = 0;
+	*x1 = x;
+	*y1 = y;
+	*w  = *h = 0;
 
-    int16_t minx = _width, miny = _height, maxx = -1, maxy = -1;
+	int16_t minx = _width, miny = _height, maxx = -1, maxy = -1;
 
-    while((c = *str++))
-        charBounds(c, &x, &y, &minx, &miny, &maxx, &maxy);
+	while ((c = *str++))
+		charBounds(c, &x, &y, &minx, &miny, &maxx, &maxy);
 
-    if(maxx >= minx) {
-        *x1 = minx;
-        *w  = maxx - minx + 1;
-    }
-    if(maxy >= miny) {
-        *y1 = miny;
-        *h  = maxy - miny + 1;
-    }
+	if (maxx >= minx) {
+		*x1 = minx;
+		*w  = maxx - minx + 1;
+	}
+	if (maxy >= miny) {
+		*y1 = miny;
+		*h  = maxy - miny + 1;
+	}
 }
 
 /**************************************************************************/
@@ -969,152 +972,517 @@ void getTextBounds(const char *str, int16_t x, int16_t y, int16_t *x1, int16_t *
 */
 /**************************************************************************/
 void setRotation(uint8_t x) {
-  rotation = (x & 3);
-  switch (rotation) {
-  case 0:
-  case 2:
-    _width = LCDWIDTH;
-    _height = LCDHEIGHT;
-    break;
-  case 1:
-  case 3:
-    _width = LCDHEIGHT;
-    _height = LCDWIDTH;
-    break;
-  }
+	rotation = (x & 3);
+	switch (rotation) {
+	case 0:
+	case 2:
+		_width = LCDWIDTH;
+		_height = LCDHEIGHT;
+		break;
+	case 1:
+	case 3:
+		_width = LCDHEIGHT;
+		_height = LCDWIDTH;
+		break;
+	}
 }
 void drawBitmap(int16_t x, int16_t y, const uint8_t bitmap[], int16_t w, int16_t h, uint16_t color) {
 
-  int16_t byteWidth = (w + 7) / 8; // Bitmap scanline pad = whole byte
-  uint8_t byte = 0;
+	int16_t byteWidth = (w + 7) / 8; // Bitmap scanline pad = whole byte
+	uint8_t byte = 0;
 
-  //startWrite();
-  for (int16_t j = 0; j < h; j++, y++) {
-    for (int16_t i = 0; i < w; i++) {
-      if (i & 7)
-        byte <<= 1;
-      else
-        byte = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
-      if (byte & 0x80)
-        writePixel(x + i, y, color);
-    }
-  }
-  //endWrite();
+	//startWrite();
+	for (int16_t j = 0; j < h; j++, y++) {
+		for (int16_t i = 0; i < w; i++) {
+			if (i & 7)
+				byte <<= 1;
+			else
+				byte = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
+			if (byte & 0x80)
+				writePixel(x + i, y, color);
+		}
+	}
+	//endWrite();
 }
 
 /************************************************************************/
-  /*!
-    @brief      Demo Functions for Nokia 5110 LCD
-    @returns    
-  */
-  /************************************************************************/
+/*!
+  @brief      Demo Functions for Nokia 5110 LCD
+  @returns
+*/
+/************************************************************************/
 void testdrawchar(void) {
-  setTextSize(1);
-  //setTextColor(BLACK);
-  setCursor(0,0);
+	setTextSize(1);
+	//setTextColor(BLACK);
+	setCursor(0, 0);
 
-  for (uint8_t i=0; i < 168; i++) {
-    if (i == '\n') continue;
-    write(i);
-    //if ((i > 0) && (i % 14 == 0))
-      //printString();
-  }    
-  display();
+	for (uint8_t i = 0; i < 168; i++) {
+		if (i == '\n') continue;
+		write(i);
+		//if ((i > 0) && (i % 14 == 0))
+		//printString();
+	}
+	display();
 }
 
 void testdrawcircle(void) {
-  for (int16_t i=0; i<LCDHEIGHT; i+=2) {
-    drawCircle(LCDWIDTH/2, LCDHEIGHT/2, i, BLACK);
-    display();
-  }
+	for (int16_t i = 0; i < LCDHEIGHT; i += 2) {
+		drawCircle(LCDWIDTH / 2, LCDHEIGHT / 2, i, BLACK);
+		display();
+	}
 }
 
 void testfillrect(void) {
-  uint8_t color = 1;
-  for (int16_t i=0; i<LCDHEIGHT/2; i+=3) {
-    // alternate colors
-    fillRect(i, i, LCDWIDTH-i*2, LCDHEIGHT-i*2, color%2);
-    display();
-    color++;
-  }
+	uint8_t color = 1;
+	for (int16_t i = 0; i < LCDHEIGHT / 2; i += 3) {
+		// alternate colors
+		fillRect(i, i, LCDWIDTH - i * 2, LCDHEIGHT - i * 2, color % 2);
+		display();
+		color++;
+	}
 }
 
 void testdrawroundrect(void) {
-  for (int16_t i=0; i<LCDHEIGHT/2-2; i+=2) {
-    drawRoundRect(i, i, LCDWIDTH-2*i, LCDHEIGHT-2*i, LCDHEIGHT/4, BLACK);
-    display();
-  }
+	for (int16_t i = 0; i < LCDHEIGHT / 2 - 2; i += 2) {
+		drawRoundRect(i, i, LCDWIDTH - 2 * i, LCDHEIGHT - 2 * i, LCDHEIGHT / 4, BLACK);
+		display();
+	}
 }
 
 void testfillroundrect(void) {
-  uint8_t color = BLACK;
-  for (int16_t i=0; i<LCDHEIGHT/2-2; i+=2) {
-    fillRoundRect(i, i, LCDWIDTH-2*i, LCDHEIGHT-2*i, LCDHEIGHT/4, color);
-    if (color == WHITE) color = BLACK;
-    else color = WHITE;
-    display();
-  }
+	uint8_t color = BLACK;
+	for (int16_t i = 0; i < LCDHEIGHT / 2 - 2; i += 2) {
+		fillRoundRect(i, i, LCDWIDTH - 2 * i, LCDHEIGHT - 2 * i, LCDHEIGHT / 4, color);
+		if (color == WHITE) color = BLACK;
+		else color = WHITE;
+		display();
+	}
 }
-   
+
 void testdrawrect(void) {
-  for (int16_t i=0; i<LCDHEIGHT/2; i+=2) {
-    drawRect(i, i, LCDWIDTH-2*i, LCDHEIGHT-2*i, BLACK);
-    display();
-  }
+	for (int16_t i = 0; i < LCDHEIGHT / 2; i += 2) {
+		drawRect(i, i, LCDWIDTH - 2 * i, LCDHEIGHT - 2 * i, BLACK);
+		display();
+	}
 }
 
-void testdrawline() {  
-  for (int16_t i=0; i<LCDWIDTH; i+=4) {
-    drawLine(0, 0, i, LCDHEIGHT-1, BLACK);
-    display();
-  }
-  for (int16_t i=0; i<LCDHEIGHT; i+=4) {
-    drawLine(0, 0, LCDWIDTH-1, i, BLACK);
-    display();
-  }
-  sleep_ms(250);
-  
-  clearDisplay();
-  for (int16_t i=0; i<LCDWIDTH; i+=4) {
-    drawLine(0, LCDHEIGHT-1, i, 0, BLACK);
-    display();
-  }
-  for (int8_t i=LCDHEIGHT-1; i>=0; i-=4) {
-    drawLine(0, LCDHEIGHT-1, LCDWIDTH-1, i, BLACK);
-    display();
-  }
-  sleep_ms(250);
-  
-  clearDisplay();
-  for (int16_t i=LCDWIDTH-1; i>=0; i-=4) {
-    drawLine(LCDWIDTH-1, LCDHEIGHT-1, i, 0, BLACK);
-    display();
-  }
-  for (int16_t i=LCDHEIGHT-1; i>=0; i-=4) {
-    drawLine(LCDWIDTH-1, LCDHEIGHT-1, 0, i, BLACK);
-    display();
-  }
-  sleep_ms(250);
+void testdrawline() {
+	for (int16_t i = 0; i < LCDWIDTH; i += 4) {
+		drawLine(0, 0, i, LCDHEIGHT - 1, BLACK);
+		display();
+	}
+	for (int16_t i = 0; i < LCDHEIGHT; i += 4) {
+		drawLine(0, 0, LCDWIDTH - 1, i, BLACK);
+		display();
+	}
+	sleep_ms(250);
 
-  clearDisplay();
-  for (int16_t i=0; i<LCDHEIGHT; i+=4) {
-    drawLine(LCDWIDTH-1, 0, 0, i, BLACK);
-    display();
-  }
-  for (int16_t i=0; i<LCDWIDTH; i+=4) {
-    drawLine(LCDWIDTH-1, 0, i, LCDHEIGHT-1, BLACK); 
-    display();
-  }
-  sleep_ms(250);
-}
-
-void LCD_Demo(string s)
-{
 	clearDisplay();
-    setRotation(2);  
-    clearDisplay();
-    setCursor(0, 0);
-    setTextSize(1);
-    printString(s);
-    display();
+	for (int16_t i = 0; i < LCDWIDTH; i += 4) {
+		drawLine(0, LCDHEIGHT - 1, i, 0, BLACK);
+		display();
+	}
+	for (int8_t i = LCDHEIGHT - 1; i >= 0; i -= 4) {
+		drawLine(0, LCDHEIGHT - 1, LCDWIDTH - 1, i, BLACK);
+		display();
+	}
+	sleep_ms(250);
+
+	clearDisplay();
+	for (int16_t i = LCDWIDTH - 1; i >= 0; i -= 4) {
+		drawLine(LCDWIDTH - 1, LCDHEIGHT - 1, i, 0, BLACK);
+		display();
+	}
+	for (int16_t i = LCDHEIGHT - 1; i >= 0; i -= 4) {
+		drawLine(LCDWIDTH - 1, LCDHEIGHT - 1, 0, i, BLACK);
+		display();
+	}
+	sleep_ms(250);
+
+	clearDisplay();
+	for (int16_t i = 0; i < LCDHEIGHT; i += 4) {
+		drawLine(LCDWIDTH - 1, 0, 0, i, BLACK);
+		display();
+	}
+	for (int16_t i = 0; i < LCDWIDTH; i += 4) {
+		drawLine(LCDWIDTH - 1, 0, i, LCDHEIGHT - 1, BLACK);
+		display();
+	}
+	sleep_ms(250);
+}
+
+void LCD_Demo(char *s)
+{
+	setRotation(2);
+	clearDisplay();
+	setCursor(0, 0);
+	setTextSize(1);
+	printString("Hemlo World");
+	setCursor(0, 20);
+	printString(s);
+	display();
+}
+
+void rec(int x1, int x2, int y1, int y2) {
+	for (int i = x1; i <= x2; i++) {
+		for (int j = y1; j <= y2; j++) {
+			writePixel(i, j, BLACK);
+		}
+	}
+}
+
+void create(int val, int x, int y) {
+	for (int i = 0; i < 5; i++) {
+		for (int j = 0; j < 5; j++) {
+			writePixel(x + i, y + j, BLACK);
+		}
+	}
+	if (val == 1) {
+		writePixel(x + 1, y + 1, WHITE);
+		for (int i = 1; i <= 3; i++) {
+			writePixel(x + i, y + 4, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+	}
+	else if (val == 2) {
+		writePixel(x + 1, y + 1, WHITE);
+		writePixel(x + 1, y + 4, WHITE);
+		for (int i = 0; i <= 4; i++) {
+			if (i == 1 || i == 2) continue;
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 1; i <= 4; i++) {
+			if (i == 3) continue;
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 3) {
+		writePixel(x + 1, y + 0, WHITE);
+		writePixel(x + 1, y + 2, WHITE);
+		writePixel(x + 1, y + 4, WHITE);
+
+		writePixel(x + 2, y + 0, WHITE);
+		writePixel(x + 2, y + 2, WHITE);
+		writePixel(x + 2, y + 4, WHITE);
+
+		writePixel(x + 3, y + 1, WHITE);
+		writePixel(x + 3, y + 3, WHITE);
+	}
+	else if (val == 4) {
+		for (int i = 0; i <= 2; i++) {
+			writePixel(x + 1, y + i, WHITE);
+		}
+		writePixel(x + 2, y + 2, WHITE);
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 5) {
+		for (int i = 0; i <= 4; i++) {
+			if (i == 3) continue;
+			writePixel(x + 1, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i += 2) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			if (i == 1) continue;
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 6) {
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 1, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i += 2) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			if (i == 1) continue;
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 7) {
+		for (int i = 0; i <= 4; i++) {
+			if (i == 1 || i == 2) continue;
+			writePixel(x + 1, y + i, WHITE);
+		}
+		for (int i = 0; i <= 2; i += 2) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+		writePixel(x + 3, y, WHITE);
+		writePixel(x + 3, y + 1, WHITE);
+	}
+	else if (val == 8) {
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 1, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i += 2) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 9) {
+		for (int i = 0; i <= 2; i++) {
+			writePixel(x + 1, y + i, WHITE);
+		}
+		for (int i = 0; i <= 3; i += 2) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 0) {
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 1, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i += 2) {
+			if (i == 2) continue;
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 'F') {
+		writePixel(x + 1, y + 2, WHITE);
+		for (int i = 1; i <= 2; i++) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 3, y + i, WHITE);
+		}
+	}
+	else if (val == 'M') {
+		writePixel(x, y + 2, WHITE);
+		for (int i = 1; i <= 3; i++) {
+			writePixel(x + 1, y + i, WHITE);
+		}
+		for (int i = 0; i <= 4; i++) {
+			writePixel(x + 2, y + i, WHITE);
+		}
+		for (int i = 1; i <= 3; i++) {
+			writePixel(x + 3, y + i, WHITE);
+		}
+		writePixel(x + 4, y + 2, WHITE);
+	}
+	else if (val == 'C') {
+		for (int i = 0; i < 5; i++) {
+			for (int j = 0; j < 5; j++) {
+				if ((i + j) % 2 == 0) {
+					writePixel(x + i, y + j, WHITE);
+				}
+			}
+		}
+	}
+	else if (val == 'W') {
+		for (int i = 0; i < 5; i++) {
+			for (int j = 0; j < 5; j++) {
+				writePixel(x + i, y + j, WHITE);
+			}
+		}
+	}
+	else if (val == 'B') {
+		for (int i = 0; i < 5; i++) {
+			for (int j = 0; j < 5; j++) {
+				writePixel(x + i, y + j, BLACK);
+			}
+		}
+	}
+	else {
+		return;
+	}
+}
+
+int x[13][6], y[13][6], mat[13][6], act[13][6];
+int cnt_open, tm;
+int bomb[13][6];
+int cur_x, cur_y;
+
+void gridd() {
+	setRotation(2);
+	clearDisplay();
+
+	rec(0, 1, 0, 47);
+	rec(0, 84, 0, 1);
+	rec(81, 83, 0, 47);
+	rec(0, 83, 39, 47);
+
+	for (int i = 0; i < 13; i++) {
+		for (int j = 0; j < 6; j++) {
+			if (mat[i][j] == 0) {
+				create('W', x[i][j], y[i][j]);
+				continue;
+			}
+			create(mat[i][j], x[i][j], y[i][j]);
+		}
+	}
+	create('C', x[cur_x][cur_y], y[cur_x][cur_y]);
+	display();
+}
+
+void move_cursor(int dx, int dy) {
+	if (cur_x + dx >= 13 || cur_x + dx < 0 || cur_y + dy >= 6 || cur_y + dy < 0) {
+		return;
+	}
+
+	cur_x += dx;
+	cur_y += dy;
+	gridd();
+}
+
+void flagg() {
+	if (mat[cur_x][cur_y] != 'B' && mat[cur_x][cur_y] != 'F') return;
+	if (mat[cur_x][cur_y] == 'F') {
+		mat[cur_x][cur_y] = 'B';
+	}
+	else {
+		mat[cur_x][cur_y] = 'F';
+	}
+	gridd();
+}
+
+void time_display(int sec) {
+	if (sec == 0) {
+		create(sec, x, y);
+	}
+	int mx = 1;
+	while (mx * 10 <= sec) {
+		mx *= 10;
+	}
+
+	int x = 13, y = 41;
+	while (mx) {
+		create(sec / mx, x, y);
+		sec %= mx;
+		x += 4;
+		mx /= 10;
+	}
+}
+
+void grid() {
+	int cx = 3;
+	cnt_open = 0;
+	cur_x = 0, cur_y = 0;
+	for (int i = 0; i < 13; i++) {
+		int cy = 3;
+		for (int j = 0; j < 6; j++) {
+			x[i][j] = cx;
+			y[i][j] = cy;
+			cy += 6;
+		}
+		cx += 6;
+	}
+
+	for (int i = 0; i < 13; i++) {
+		for (int j = 0; j < 6; j++) {
+			mat[i][j] = 'B';
+		}
+	}
+	gridd();
+}
+
+void open(int x, int y) {
+	cnt_open++;
+	mat[x][y] = act[x][y];
+	if (act[x][y]) return;
+	for (int dx = -1; dx < 2; dx++) {
+		for (int dy = -1; dy < 2; dy++) {
+			if (x + dx >= 13 || x + dx < 0 || y + dy >= 6 || y + dy < 0) {
+				continue;
+			}
+			if (mat[x + dx][y + dy] == 'B') {
+				open(x + dx, y + dy);
+			}
+		}
+	}
+}
+
+bool cl() {
+	if (act[cur_x][cur_y] == 'M') {
+		gameOver();
+		return false;
+	}
+	open(cur_x, cur_y);
+	if (cnt_open == 13 * 6 - 12) {
+		youWon();
+	}
+	return true;
+}
+
+bool generate() {
+	for (int i = 0; i < 13; i++) {
+		for (int j = 0; j < 6; j++) {
+			bomb[i][j] = 2;
+		}
+	}
+	for (int dx = -1; dx < 2; dx++) {
+		for (int dy = -1; dy < 2; dy++) {
+			if (cur_x + dx >= 13 || cur_x + dx < 0 || cur_y + dy >= 6 || cur_y + dy < 0) {
+				return;
+			}
+			bomb[cur_x + dx][cur_y + dy] = 0;
+		}
+	}
+
+	for (int i = 0; i < 12; i++) {
+		int a = rand() % 13, b = rand() % 6;
+		while (bomb[a][b] != 2) {
+			a = rand() % 13, b = rand() % 6;
+		}
+		bomb[a][b] = 1;
+	}
+
+	for (int i = 0; i < 13; i++) {
+		for (int j = 0; j < 6; j++) {
+			if (bomb[i][j] == 2) bomb[i][j] = 0;
+		}
+	}
+
+	for (int i = 0; i < 13; i++) {
+		for (int j = 0; j < 6; j++) {
+			if (bomb[i][j]) {
+				act[i][j] = 'M';
+			}
+			else {
+				for (int dx = -1; dx < 2; dx++) {
+					for (int dy = -1; dy < 2; dy++) {
+						if (i + dx >= 13 || i + dx < 0 || j + dy >= 6 || j + dy < 0) {
+							continue;
+						}
+						act[i][j] += bomb[i + dx][j + dy];
+					}
+				}
+			}
+		}
+	}
+
+	return cl();
+}
+
+void gameOver() {
+	setRotation(2);
+	clearDisplay();
+
+	setCursor(10, 20);
+	printString("Game Over!");
+	display();
+	sleep_ms(5000);
+	grid();
+}
+
+void youWon() {
+	setRotation(2);
+	clearDisplay();
+
+	setCursor(10, 20);
+	printString("You Won!");
+	display();
+	sleep_ms(5000);
+	grid();
 }
