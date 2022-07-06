@@ -8,7 +8,7 @@
 
 
 * Contributors : 
- - Akshaj Padmakar 
- - Akshay Khandelwal
- - Pratyush Ranjan
- - Aryan Bhushanwar
+  - Akshaj Padmakar 
+  - Akshay Khandelwal
+  - Pratyush Ranjan
+  - Aryan Bhushanwar
